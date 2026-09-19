@@ -92,6 +92,24 @@ bun run build && bun run serve -- --dir dist
 | `public/assets`（或任何只放素材的目录） | `<服务根>/clips.json` | `<服务根>/a.mp4` |
 | `dist`（打包产物） | `<服务根>/assets/clips.json` | `<服务根>/assets/a.mp4` |
 
+### 视频不放仓库里（`--assets`）
+
+几百 MB 的视频放 `public/assets/` 有个副作用：`vite build` 会把 `public/` 整个复制进
+`dist/`，每次构建都白搬一遍、磁盘上再多占一份。想让构建只出代码，就把素材挪到仓库外，
+起服务时指过去：
+
+```bash
+mv public/assets ~/Desktop/素材          # 挪出去（clips.json 跟着一起走）
+bun run build                            # 现在只出 index.html + static/，一两百毫秒
+bun run serve --dir dist --assets ~/Desktop/素材
+```
+
+`--dir dist` 里没有视频，`--assets` 会把那个目录挂到 `/assets/` 下 —— 正好是页面要的路径，
+所以 iPad 还是一个地址就够了。
+
+挪出去之后 `bun run dev` 没有自带素材（页面会提示「没读到自带素材」），
+开发时用「选文件夹」模式，或者临时把素材放回来。
+
 ### 能不能靠多线程提速
 
 不能，这个方向没用。发静态文件是 I/O 密集型，Bun 本来就在单线程里异步处理并发的
