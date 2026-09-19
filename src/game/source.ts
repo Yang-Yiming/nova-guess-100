@@ -1,11 +1,11 @@
 /**
  * 把「配置里的视频条目」和「本地文件」统一成一种可播放的东西。
  *
- * - 自带素材（`public/assets/`）：url 指向 assets 目录，走 HTTP。
+ * - 自带素材（`public/assets/`）和服务器素材：url 指向 HTTP 服务，边播边取。
  * - 本地文件夹：url 是 `URL.createObjectURL(file)`，视频一个字节都不上传。
  */
 
-import { assetUrl, type ClipDef } from './config.ts'
+import type { ClipDef } from './config.ts'
 import type { LocalVideo } from './local.ts'
 
 export interface PlayableClip extends ClipDef {
@@ -15,12 +15,13 @@ export interface PlayableClip extends ClipDef {
 
 export interface ClipSet {
   clips: PlayableClip[]
-  /** 释放 object URL；自带素材模式下是空操作 */
+  /** 释放 object URL；HTTP 素材下是空操作 */
   dispose(): void
 }
 
-export function builtinClips(clips: readonly ClipDef[]): ClipSet {
-  return { clips: clips.map((clip) => ({ ...clip, url: assetUrl(clip.file) })), dispose: () => {} }
+/** url 由调用方决定：本机 assets 目录，或另一台机器的服务器地址。 */
+export function httpClips(clips: readonly ClipDef[], urlFor: (file: string) => string): PlayableClip[] {
+  return clips.map((clip) => ({ ...clip, url: urlFor(clip.file) }))
 }
 
 /** 只把「配了舞种」的视频算进来；没配的在设置页里标出来。 */

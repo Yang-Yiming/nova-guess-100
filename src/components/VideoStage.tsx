@@ -124,7 +124,9 @@ export function VideoStage({ clip, settings, loop, muted, onEnded, onError, onTo
         src={clip.url}
         playsInline
         disablePictureInPicture
-        preload="auto"
+        // 只预取元数据（时长/尺寸），真正播哪一段、取哪一段字节由浏览器按 Range 决定，
+        // 不整份下载 —— 服务器素材走网络时尤其重要。
+        preload="metadata"
         muted={muted}
         onLoadedMetadata={handleLoadedMetadata}
         onCanPlay={() => {
@@ -164,10 +166,11 @@ export function VideoStage({ clip, settings, loop, muted, onEnded, onError, onTo
               <span>点击播放</span>
             </button>
           ) : buffering ? (
-            <div className="stage__overlay stage__overlay--quiet">
+            // 也是按钮：Safari 有时不主动取元数据，卡在这儿就没救了；点一下就手动起播
+            <button className="stage__overlay stage__overlay--quiet" type="button" onClick={play}>
               <span className="stage__dot" />
-              缓冲中
-            </div>
+              缓冲中 · 点一下播放
+            </button>
           ) : null}
         </>
       )}

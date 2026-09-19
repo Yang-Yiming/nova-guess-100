@@ -46,7 +46,7 @@ export function StartScreen({ config, clipCount, styleCount, sourceLabel, extraN
 
       {!ready && (
         <section className="notice notice--error">
-          <p>还没有配好的视频。进设置选一个视频文件夹，给视频指定舞种就能开始。</p>
+          <p>{extraNotice ?? '还没有配好的视频。进设置选一个视频文件夹，给视频指定舞种就能开始。'}</p>
         </section>
       )}
 

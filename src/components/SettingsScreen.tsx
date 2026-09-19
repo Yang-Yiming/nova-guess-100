@@ -3,6 +3,12 @@ import { DEFAULT_SETTINGS, type Settings, type StyleDef } from '../game/config.t
 import type { LocalVideo } from '../game/local.ts'
 import { displayName } from '../game/styles.ts'
 
+/** 服务器素材的连接状态。 */
+export interface RemoteView {
+  status: 'idle' | 'loading' | 'ready' | 'error'
+  error: string | null
+}
+
 export interface SettingsScreenProps {
   settings: Settings
   /** 全部舞种（含被关掉的），选项列表用它 */
@@ -19,6 +25,11 @@ export interface SettingsScreenProps {
   onToggleShowChinese: () => void
   /** 浏览器是否支持直接选文件夹 */
   canPickFolder: boolean
+  /** 从服务器取素材的状态 */
+  remote: RemoteView
+  remoteUrl: string
+  onConnectRemote: (url: string) => void
+  onCancelRemote: () => void
   onPickFolder: () => void
   onChooseFiles: (files: File[]) => void
   onAssign: (path: string, styleId: string) => void
@@ -42,6 +53,10 @@ export function SettingsScreen(props: SettingsScreenProps) {
     showChinese,
     onToggleShowChinese,
     canPickFolder,
+    remote,
+    remoteUrl,
+    onConnectRemote,
+    onCancelRemote,
     onPickFolder,
     onChooseFiles,
     onAssign,
@@ -54,8 +69,10 @@ export function SettingsScreen(props: SettingsScreenProps) {
   } = props
 
   const [dragging, setDragging] = useState(false)
+  const [draft, setDraft] = useState(remoteUrl)
 
   const assigned = useMemo(() => videos.filter((video) => assignments[video.path]).length, [videos, assignments])
+
   const activeStyles = allStyles.filter((style) => !disabledStyles.includes(style.id))
   const set = (key: keyof Settings, value: number) => onSettingsChange({ [key]: value })
 
@@ -69,10 +86,48 @@ export function SettingsScreen(props: SettingsScreenProps) {
       </header>
 
       <section className="panel">
-        <h2>1 · 选视频目录</h2>
+        <h2>1 · 选素材来源</h2>
         <p className="panel__hint">
-          视频只在你自己的电脑上读，不会上传到任何地方。当前：<strong>{sourceLabel}</strong>
+          当前：<strong>{sourceLabel}</strong>
         </p>
+
+        <div className="remote">
+          <p className="panel__hint">
+            还可以连<strong>另一台机器</strong>上的素材：那边把视频和 clips.json 放进一个目录，
+            跑 <code>bun run serve</code>，这里填它打印的地址。视频是<strong>边播边取</strong>的，
+            不用等下载，也不会占本机空间 —— 只要求对方支持 Range 请求（<code>bun run serve</code> 支持）。
+          </p>
+          <div className="remote__row">
+            <input
+              type="text"
+              className="remote__input"
+              placeholder="192.168.1.5:8888"
+              value={draft}
+              spellCheck={false}
+              autoComplete="off"
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && draft.trim() !== '') onConnectRemote(draft)
+              }}
+            />
+            <button
+              className="btn btn--primary"
+              type="button"
+              disabled={draft.trim() === '' || remote.status === 'loading'}
+              onClick={() => onConnectRemote(draft)}
+            >
+              {remote.status === 'loading' ? '连接中…' : remote.status === 'ready' ? '重连' : '连接'}
+            </button>
+            {remote.status === 'ready' && (
+              <button className="btn" type="button" onClick={onCancelRemote}>
+                断开
+              </button>
+            )}
+          </div>
+          {remote.status === 'error' && remote.error && (
+            <p className="panel__hint remote__status remote__status--error">{remote.error}</p>
+          )}
+        </div>
 
         <div
           className={'drop' + (dragging ? ' drop--active' : '')}

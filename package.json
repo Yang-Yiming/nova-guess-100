@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "lint": "oxlint",
     "demo": "bun scripts/demo-clips.ts",
+    "serve": "bun scripts/serve-videos.ts",
     "transcode": "bun scripts/transcode-videos.ts"
   },
   "dependencies": {

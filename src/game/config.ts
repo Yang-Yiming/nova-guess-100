@@ -223,27 +223,34 @@ export interface AvailabilityReport {
   available: ClipDef[]
   /** 确定不存在的视频文件（404 / 0 字节 / 被当成 SPA 首页返回了 HTML） */
   missing: ClipDef[]
+  /** 有没有一次探测真的成功了；全是 false 说明探测本身没起作用（跨域被拦） */
+  probed: boolean
 }
 
 /**
- * 逐个 HEAD 探测视频是否存在。探测本身失败（离线、不支持 HEAD）时保守放行，
+ * 逐个 HEAD 探测视频是否存在。探测本身失败（离线、不支持 HEAD、对方没开跨域）时保守放行，
  * 只有在**确定**不存在时才标记缺失。
  */
-export async function checkAvailability(clips: readonly ClipDef[]): Promise<AvailabilityReport> {
+export async function checkAvailability(
+  clips: readonly ClipDef[],
+  urlFor: (file: string) => string = assetUrl,
+): Promise<AvailabilityReport> {
   const results = await Promise.all(
     clips.map(async (clip) => {
       try {
-        const response = await fetch(assetUrl(clip.file), { method: 'HEAD', cache: 'no-store' })
+        const response = await fetch(urlFor(clip.file), { method: 'HEAD', cache: 'no-store' })
         const type = response.headers.get('content-type') ?? ''
         const length = Number(response.headers.get('content-length') ?? '1')
-        return { clip, missing: response.status === 404 || length === 0 || type.startsWith('text/html') }
+        return { clip, missing: response.status === 404 || length === 0 || type.startsWith('text/html'), probed: true }
       } catch {
-        return { clip, missing: false }
+        return { clip, missing: false, probed: false }
       }
     }),
   )
   return {
     available: results.filter((r) => !r.missing).map((r) => r.clip),
     missing: results.filter((r) => r.missing).map((r) => r.clip),
+    /** 一个都没探到：多半是对方没开跨域，这时「缺失」的判断不可信 */
+    probed: results.some((r) => r.probed),
   }
 }

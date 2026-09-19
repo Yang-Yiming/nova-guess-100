@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { QuizScreen } from './components/QuizScreen.tsx'
 import { SettingsScreen } from './components/SettingsScreen.tsx'
 import { StartScreen } from './components/StartScreen.tsx'
 import { SummaryScreen } from './components/SummaryScreen.tsx'
 import {
+  assetUrl,
   checkAvailability,
   DEFAULT_SETTINGS,
   loadConfig,
@@ -22,7 +23,9 @@ import {
   videosFromFiles,
   type LocalVideo,
 } from './game/local.ts'
-import { builtinClips, localClips, type PlayableClip } from './game/source.ts'
+import { purgeLegacyVideoCache } from './game/idb.ts'
+import { loadRemote, type RemoteSource } from './game/remote.ts'
+import { httpClips, localClips, type PlayableClip } from './game/source.ts'
 import { DEFAULT_STYLES, displayName } from './game/styles.ts'
 import { loadPersisted, savePersisted, type PersistedState } from './game/store.ts'
 import { stylesWithClips } from './game/quiz.ts'
@@ -34,6 +37,15 @@ interface BuiltinData {
   styles: StyleDef[]
   diagnostics: Diagnostic[]
 }
+
+interface RemoteState {
+  /** 连上之后才有；url 直接指向对方服务器，不需要回收 */
+  source: RemoteSource | null
+  status: 'idle' | 'loading' | 'ready' | 'error'
+  error: string | null
+}
+
+const NO_REMOTE: RemoteState = { source: null, status: 'idle', error: null }
 
 /** 把用户在设置页填的数字夹回合理范围（输入框可以被手打绕过）。 */
 function resolveSettings(raw: Partial<Settings>): Settings {
@@ -70,6 +82,7 @@ function View({
 export default function App() {
   const [builtin, setBuiltin] = useState<BuiltinData>({ clips: [], styles: [...DEFAULT_STYLES], diagnostics: [] })
   const [persisted, setPersisted] = useState<PersistedState>(loadPersisted)
+  const [remote, setRemote] = useState<RemoteState>(NO_REMOTE)
   const [videos, setVideos] = useState<LocalVideo[]>([])
   const [folderName, setFolderName] = useState<string | null>(null)
   const [pendingName, setPendingName] = useState<string | null>(null)
@@ -77,29 +90,73 @@ export default function App() {
   const [screen, setScreen] = useState<'start' | 'quiz' | 'settings'>('start')
   const [muted, setMuted] = useState(false)
   const [busy, setBusy] = useState(true)
+  /** 没指定过任何来源时，启动问一次 */
+  const [askSource, setAskSource] = useState(false)
+  const [draftUrl, setDraftUrl] = useState('')
+
+  const remoteAbort = useRef<AbortController | null>(null)
 
   useEffect(() => savePersisted(persisted), [persisted])
 
-  // 启动：读自带素材（public/assets/clips.json），再尝试恢复上次选的文件夹
+  // 之前版本把整份视频下到 IndexedDB 里，现在改成直接 GET —— 开一次库触发升级，把那些文件清掉
+  useEffect(() => {
+    void purgeLegacyVideoCache()
+  }, [])
+
+  /** 连服务器：读回 clips.json，视频地址直接用对方的 URL。 */
+  const applyRemote = useCallback((raw: string) => {
+    remoteAbort.current?.abort()
+    const controller = new AbortController()
+    remoteAbort.current = controller
+    setRemote({ source: null, status: 'loading', error: null })
+    setPersisted((previous) => ({ ...previous, source: 'remote', remoteUrl: raw.trim(), sourceConfirmed: true }))
+    void (async () => {
+      try {
+        const source = await loadRemote(raw, controller.signal)
+        if (controller.signal.aborted) return
+        setRemote({ source, status: 'ready', error: null })
+        setPersisted((previous) => ({ ...previous, source: 'remote', remoteUrl: source.base, sourceConfirmed: true }))
+        setNotice(source.diagnostics.length > 0 ? source.diagnostics[0].message : null)
+      } catch (cause) {
+        if (controller.signal.aborted) return
+        const message = cause instanceof Error ? cause.message : String(cause)
+        setRemote({ source: null, status: 'error', error: message })
+        setNotice(message)
+      }
+    })()
+  }, [])
+
+  /** 停掉服务器模式，改回自带素材。 */
+  const useBuiltinAssets = useCallback(() => {
+    remoteAbort.current?.abort()
+    remoteAbort.current = null
+    setRemote(NO_REMOTE)
+    setPersisted((previous) => ({ ...previous, source: 'builtin', sourceConfirmed: true }))
+  }, [])
+
+  // 启动：读自带素材（public/assets/clips.json），再尝试恢复上次的文件夹 / 服务器
   useEffect(() => {
     let cancelled = false
     void (async () => {
+      const stored = loadPersisted()
       // 便携版是双击 file:// 打开的，fetch 会被 CORS 挡掉，所以压根不去读
       if (!__PORTABLE__) {
         try {
           const { config, diagnostics } = await loadConfig()
           const { available, missing } = await checkAvailability(config.clips)
           if (!cancelled) {
-            setBuiltin({ clips: builtinClips(available).clips, styles: config.styles, diagnostics })
-            if (missing.length > 0) setNotice(`自带素材里 ${missing.length} 个文件不存在，已跳过`)
+            setBuiltin({ clips: httpClips(available, assetUrl), styles: config.styles, diagnostics })
+            // 用服务器素材时本机 assets 是空的，这声提醒只会添乱
+            if (missing.length > 0 && stored.source !== 'remote') setNotice(`自带素材里 ${missing.length} 个文件不存在，已跳过`)
           }
         } catch (cause) {
           // 读不到不算致命：用文件夹模式就行
-          if (!cancelled) setNotice(`没读到自带素材：${cause instanceof Error ? cause.message : String(cause)}`)
+          if (!cancelled && stored.source !== 'remote') {
+            setNotice(`没读到自带素材：${cause instanceof Error ? cause.message : String(cause)}`)
+          }
         }
       }
 
-      const stored = loadPersisted()
       let restoredVideos = false
       if (stored.source === 'folder') {
         const restored = await restoreFolder()
@@ -114,21 +171,43 @@ export default function App() {
         } else if (Object.keys(stored.assignments).length > 0) {
           // 上次是用「选文件」进来的：浏览器不给句柄，刷新后文件就丢了。
           // 舞种配置还留着，重新选一次同样的文件就能对上。
-          setNotice('浏览器不允许自动找回上次选的文件，请重新选一次文件夹')
+          // 下面会弹来源框，那儿已经说了这事，网页版就别再叠一条提醒；便携版没那个框，得留着。
+          if (__PORTABLE__) setNotice('浏览器不允许自动找回上次选的文件，请重新选一次文件夹')
         }
       }
       if (cancelled) return
       // 便携版没有可用的视频就直接进设置，少点一步
       if (__PORTABLE__ && !restoredVideos) setScreen('settings')
       setBusy(false)
+
+      // 来源优先级（逐条短路）：
+      // 1. 指定了文件夹就用文件夹，绝不自动走网络
+      // 2. 明确选过服务器、且记得地址：接着连
+      // 3. 明确选过「用本页素材」：就用它
+      // 4. 其余（没选过，或文件夹已经没了）：问一次，默认走服务器 GET
+      if (stored.source === 'folder' && restoredVideos) return
+      if (stored.source === 'remote' && stored.remoteUrl !== '') {
+        applyRemote(stored.remoteUrl)
+        return
+      }
+      if (stored.source === 'builtin' && stored.sourceConfirmed) return
+      // 便携版是 file:// 双击打开的，fetch 到 http 会被拦，问了也没用
+      if (!__PORTABLE__) {
+        // 页面多半就是素材服务器发出来的，把当前地址填进去当默认值
+        setDraftUrl(stored.remoteUrl || location.origin)
+        setAskSource(true)
+      }
     })()
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [applyRemote])
 
   /** 拿到一批新视频：记住文件夹、给没配过的文件猜个舞种。 */
   const applyVideos = useCallback((name: string, found: LocalVideo[]) => {
+    remoteAbort.current?.abort()
+    remoteAbort.current = null
+    setRemote(NO_REMOTE)
     setVideos(found)
     setFolderName(name)
     setPendingName(null)
@@ -140,14 +219,15 @@ export default function App() {
           if (guessed) assignments[video.path] = guessed
         }
       }
-      return { ...previous, source: 'folder', assignments }
+      return { ...previous, source: 'folder', sourceConfirmed: true, assignments }
     })
   }, [])
 
   const settings = useMemo(() => resolveSettings(persisted.settings), [persisted.settings])
   const usingFolder = persisted.source === 'folder' && videos.length > 0
-  // 自带素材模式用 clips.json 的舞种（可能是自定义的），文件夹模式用内置那 7 个
-  const allStyles = usingFolder ? DEFAULT_STYLES : builtin.styles
+  const usingRemote = persisted.source === 'remote'
+  // 素材来源的优先级：服务器 > 本地文件夹 > 自带 assets。舞种清单跟着来源走。
+  const allStyles = usingRemote && remote.source ? remote.source.styles : usingFolder ? DEFAULT_STYLES : builtin.styles
   // 舞种名在这里统一解析好，下游组件直接用 style.name 就是该显示的写法
   const styles = useMemo(
     () =>
@@ -160,6 +240,7 @@ export default function App() {
   const config: QuizConfig = useMemo(() => ({ settings, styles: [...styles], clips: [] }), [settings, styles])
 
   const clips = useMemo<PlayableClip[]>(() => {
+    if (usingRemote) return remote.source?.clips ?? []
     if (!usingFolder) return builtin.clips
     const valid = new Set(styles.map((style) => style.id))
     const assignments: Record<string, string> = {}
@@ -167,7 +248,7 @@ export default function App() {
       if (valid.has(styleId)) assignments[path] = styleId
     }
     return localClips(videos, assignments).clips
-  }, [usingFolder, builtin, videos, persisted.assignments, styles])
+  }, [usingRemote, remote, usingFolder, builtin, videos, persisted.assignments, styles])
 
   // object URL 用完要还回去
   useEffect(() => {
@@ -181,12 +262,14 @@ export default function App() {
   // 只有配了视频的舞种才可能成为答案：它同时决定选项数上限和首页显示
   const styleCount = useMemo(() => stylesWithClips(clips, styles).length, [clips, styles])
   const maxChoices = Math.max(2, styleCount)
-  const sourceLabel = usingFolder
-    ? `文件夹「${folderName ?? '已选'}」`
-    : __PORTABLE__
-      ? '还没选文件夹'
-      : '自带素材 public/assets'
-  const unassigned = videos.length - clips.length
+  const sourceLabel = usingRemote
+    ? `服务器 ${persisted.remoteUrl || remote.source?.base || ''}`
+    : usingFolder
+      ? `文件夹「${folderName ?? '已选'}」`
+      : __PORTABLE__
+        ? '还没选文件夹'
+        : '自带素材 public/assets'
+  const unassigned = usingRemote ? 0 : videos.length - clips.length
 
   const handleAssign = (path: string, styleId: string) =>
     setPersisted((previous) => {
@@ -203,6 +286,36 @@ export default function App() {
       return
     }
     applyVideos(result.name, result.videos)
+  }
+
+  /** 启动询问框里选「用服务器素材」：本页同源就直接用，否则连填的地址。 */
+  const useServerSource = () => {
+    if (builtin.clips.length > 0) {
+      setAskSource(false)
+      setPersisted((previous) => ({ ...previous, source: 'builtin', sourceConfirmed: true }))
+      return
+    }
+    const url = draftUrl.trim()
+    if (url === '') {
+      setNotice('先填一下素材服务器的地址')
+      return
+    }
+    setAskSource(false)
+    applyRemote(url)
+  }
+
+  /** 启动询问框里选「选本机文件夹」：立刻弹选择器，别让用户再点一次。 */
+  const useFolderSource = () => {
+    void (async () => {
+      try {
+        const picked = await pickFolder()
+        if (!picked) return
+        setAskSource(false)
+        applyVideos(picked.name, picked.videos)
+      } catch (cause) {
+        setNotice(cause instanceof Error ? cause.message : String(cause))
+      }
+    })()
   }
 
   return (
@@ -224,6 +337,10 @@ export default function App() {
               setPersisted((previous) => ({ ...previous, showChinese: !previous.showChinese }))
             }
             canPickFolder={canPickFolder()}
+            remote={remote}
+            remoteUrl={persisted.remoteUrl}
+            onConnectRemote={applyRemote}
+            onCancelRemote={useBuiltinAssets}
             onPickFolder={() => {
               void (async () => {
                 try {
@@ -249,7 +366,7 @@ export default function App() {
             onClearFolder={() => {
               setVideos([])
               setFolderName(null)
-              setPersisted((previous) => ({ ...previous, source: 'builtin' }))
+              useBuiltinAssets()
               void forgetFolder()
             }}
             onToggleStyle={(styleId) =>
@@ -281,11 +398,15 @@ export default function App() {
             styleCount={styleCount}
             sourceLabel={sourceLabel}
             extraNotice={
-              usingFolder && unassigned > 0
-                ? `还有 ${unassigned} 个视频没指定舞种，不会出现在游戏里`
-                : builtin.diagnostics.length > 0
-                  ? builtin.diagnostics[0].message
-                  : null
+              remote.status === 'error' && remote.error
+                ? remote.error
+                : usingRemote
+                  ? (remote.source?.diagnostics[0]?.message ?? null)
+                  : usingFolder && unassigned > 0
+                    ? `还有 ${unassigned} 个视频没指定舞种，不会出现在游戏里`
+                    : builtin.diagnostics.length > 0
+                      ? builtin.diagnostics[0].message
+                      : null
             }
             onStart={() => setScreen('quiz')}
             onSettings={() => setScreen('settings')}
@@ -297,6 +418,45 @@ export default function App() {
         <button className="toast" type="button" onClick={() => setNotice(null)}>
           {notice}
         </button>
+      )}
+
+      {askSource && (
+        <div className="prompt">
+          <p>视频从哪来？</p>
+          <div className="prompt__body">
+            <p className="prompt__hint">
+              {builtin.clips.length > 0
+                ? `这个页面就是素材服务器发出来的（${location.host}），直接用服务器上的素材就行，不用下载。`
+                : '这个页面不是素材服务器发出来的。填一下它的地址 —— 也就是跑 bun run serve 的那台机器，启动时会打印出来。'}
+            </p>
+            {builtin.clips.length === 0 && (
+              <input
+                className="remote__input"
+                type="text"
+                placeholder="192.168.1.5:8888"
+                value={draftUrl}
+                spellCheck={false}
+                autoComplete="off"
+                autoFocus
+                onChange={(event) => setDraftUrl(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') useServerSource()
+                }}
+              />
+            )}
+            <div className="actions">
+              <button className="btn btn--primary" type="button" onClick={useServerSource}>
+                {builtin.clips.length > 0 ? '用服务器素材' : '连接'}
+              </button>
+              {canPickFolder() && (
+                <button className="btn" type="button" onClick={useFolderSource}>
+                  选本机文件夹
+                </button>
+              )}
+            </div>
+            <p className="prompt__hint prompt__hint--small">之后都能在设置里改。</p>
+          </div>
+        </div>
       )}
 
       {pendingName && (
@@ -321,7 +481,7 @@ export default function App() {
               type="button"
               onClick={() => {
                 setPendingName(null)
-                setPersisted((previous) => ({ ...previous, source: 'builtin' }))
+                setPersisted((previous) => ({ ...previous, source: 'builtin', sourceConfirmed: true }))
                 void forgetFolder()
               }}
             >

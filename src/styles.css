@@ -497,6 +497,7 @@ code {
 }
 
 .stage__overlay--quiet {
+  cursor: pointer;
   color: var(--muted);
   font-family: var(--font-mono);
   letter-spacing: 0.16em;
@@ -954,6 +955,49 @@ code {
   text-align: center;
 }
 
+/* 服务器素材：一行地址 + 按钮，下面跟状态 */
+.remote {
+  display: grid;
+  gap: 10px;
+  padding: 16px 16px 14px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.remote__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.remote__input {
+  flex: 1;
+  min-width: 200px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 2px solid var(--ink);
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--ink);
+}
+
+.remote__input::placeholder {
+  color: var(--faint);
+}
+
+.remote__status {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--spray);
+  word-break: break-all;
+}
+
+.remote__status--error {
+  color: var(--bad);
+}
+
 .drop p {
   margin: 0;
   font-family: var(--font-mono);
@@ -1152,6 +1196,28 @@ code {
   margin: 0;
   max-width: 460px;
   line-height: 1.8;
+}
+
+.prompt__body {
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  width: min(92vw, 520px);
+}
+
+.prompt__hint {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.prompt__hint--small {
+  font-size: 12px;
+  color: var(--faint);
+}
+
+.prompt__body .remote__input {
+  width: 100%;
+  text-align: center;
 }
 
 /* ---------- 响应式 ---------- */

@@ -8,7 +8,11 @@ import type { Settings } from './config.ts'
 export interface PersistedState {
   version: 1
   /** 上次用的视频来源 */
-  source: 'builtin' | 'folder'
+  source: 'builtin' | 'folder' | 'remote'
+  /** 上次连的服务器地址（source 为 remote 时用） */
+  remoteUrl: string
+  /** 用户是不是已经明确选过素材来源了。没选过就在启动时问一次，免得每次都要去设置里翻。 */
+  sourceConfirmed: boolean
   /** 用户改过的玩法参数（缺的项用默认值） */
   settings: Partial<Settings>
   /** 被关掉的舞种 id */
@@ -22,7 +26,16 @@ export interface PersistedState {
 const KEY = 'nova100:v1'
 
 export function defaultPersisted(): PersistedState {
-  return { version: 1, source: 'builtin', settings: {}, disabledStyles: [], assignments: {}, showChinese: false }
+  return {
+    version: 1,
+    source: 'builtin',
+    remoteUrl: '',
+    sourceConfirmed: false,
+    settings: {},
+    disabledStyles: [],
+    assignments: {},
+    showChinese: false,
+  }
 }
 
 export function loadPersisted(): PersistedState {
@@ -32,7 +45,12 @@ export function loadPersisted(): PersistedState {
     const parsed = JSON.parse(raw) as Partial<PersistedState>
     return {
       version: 1,
-      source: parsed.source === 'folder' ? 'folder' : 'builtin',
+      source: parsed.source === 'folder' || parsed.source === 'remote' ? parsed.source : 'builtin',
+      remoteUrl: typeof parsed.remoteUrl === 'string' ? parsed.remoteUrl : '',
+      // `!== false` 而不是 `=== true`：字段是后加的，老用户存的数据里没有它。
+      // 没有 = 之前已经在用了，算「选过」，别再弹框问一次。
+      // 只有本项目第一次打开（走 defaultPersisted）才是 false。
+      sourceConfirmed: parsed.sourceConfirmed !== false,
       settings: typeof parsed.settings === 'object' && parsed.settings !== null ? parsed.settings : {},
       disabledStyles: Array.isArray(parsed.disabledStyles) ? parsed.disabledStyles.filter((id) => typeof id === 'string') : [],
       showChinese: parsed.showChinese === true,

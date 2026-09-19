@@ -7,6 +7,7 @@
  *   拿不到持久句柄，每次打开要重选一次。
  */
 
+import { HANDLES, withStore } from './idb.ts'
 import { STYLE_ALIASES, type StyleDef } from './styles.ts'
 
 const VIDEO_RE = /\.(mp4|m4v|mov|webm|mkv|ogv|ogg)$/i
@@ -98,35 +99,11 @@ async function readConfig(dir: DirHandle): Promise<unknown | null> {
 
 // ---- 文件夹句柄的持久化（IndexedDB） ----
 
-const DB_NAME = 'nova100'
-const STORE = 'handles'
 const HANDLE_KEY = 'video-folder'
-
-function openDb(): Promise<IDBDatabase> {
-  const { promise, resolve, reject } = Promise.withResolvers<IDBDatabase>()
-  const request = indexedDB.open(DB_NAME, 1)
-  request.onupgradeneeded = () => request.result.createObjectStore(STORE)
-  request.onsuccess = () => resolve(request.result)
-  request.onerror = () => reject(request.error ?? new Error('indexedDB 打不开'))
-  return promise
-}
-
-async function withStore<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
-  const db = await openDb()
-  try {
-    const { promise, resolve, reject } = Promise.withResolvers<T>()
-    const request = run(db.transaction(STORE, mode).objectStore(STORE))
-    request.onsuccess = () => resolve(request.result)
-    request.onerror = () => reject(request.error ?? new Error('indexedDB 操作失败'))
-    return await promise
-  } finally {
-    db.close()
-  }
-}
 
 async function saveHandle(handle: DirHandle): Promise<void> {
   try {
-    await withStore('readwrite', (store) => store.put(handle, HANDLE_KEY))
+    await withStore(HANDLES, 'readwrite', (store) => store.put(handle, HANDLE_KEY))
   } catch {
     /* 存不下就算了，下次重选 */
   }
@@ -134,7 +111,7 @@ async function saveHandle(handle: DirHandle): Promise<void> {
 
 async function loadHandle(): Promise<DirHandle | null> {
   try {
-    return ((await withStore('readonly', (store) => store.get(HANDLE_KEY) as IDBRequest<DirHandle | undefined>)) ?? null)
+    return ((await withStore(HANDLES, 'readonly', (store) => store.get(HANDLE_KEY) as IDBRequest<DirHandle | undefined>)) ?? null)
   } catch {
     return null
   }
@@ -142,7 +119,7 @@ async function loadHandle(): Promise<DirHandle | null> {
 
 export async function forgetFolder(): Promise<void> {
   try {
-    await withStore('readwrite', (store) => store.delete(HANDLE_KEY))
+    await withStore(HANDLES, 'readwrite', (store) => store.delete(HANDLE_KEY))
   } catch {
     /* 忽略 */
   }
@@ -160,14 +137,31 @@ export async function pickFolder(): Promise<PickedFolder | null> {
   return { name: handle.name, videos: await readVideos(handle), config: await readConfig(handle) }
 }
 
+/** 目录句柄可能已经失效（文件夹被删、权限被收回、存储被别的东西写坏）：读不出内容就当没有。 */
+async function readOrNull(handle: DirHandle): Promise<LocalVideo[] | null> {
+  try {
+    return await readVideos(handle)
+  } catch {
+    return null
+  }
+}
+
 /** 启动时尝试恢复上次的文件夹；没授权就只报个名字，等用户点一下再要权限。 */
 export async function restoreFolder(): Promise<FolderRestore> {
   const handle = await loadHandle()
   if (!handle) return { status: 'none' }
-  if (await ensurePermission(handle, false)) {
-    return { status: 'ok', name: handle.name, videos: await readVideos(handle) }
+  try {
+    if (await ensurePermission(handle, false)) {
+      const videos = await readOrNull(handle)
+      if (videos) return { status: 'ok', name: handle.name, videos }
+      return { status: 'none' }
+    }
+    return { status: 'needs-permission', name: handle.name }
+  } catch {
+    // 句柄是个没法用的东西（比如升级被占位阻塞时读到的残缺记录）：退回「没选过」，
+    // 绝不把异常抛出去 —— 抛出去会让启动流程卡在「加载中…」上，用户没救回来的办法。
+    return { status: 'none' }
   }
-  return { status: 'needs-permission', name: handle.name }
 }
 
 /** 用户点「继续使用上次的文件夹」时调用（必须在用户手势里）。 */
@@ -175,7 +169,9 @@ export async function reconnectFolder(): Promise<PickedFolder | null> {
   const handle = await loadHandle()
   if (!handle) return null
   if (!(await ensurePermission(handle, true))) throw new Error('没有拿到文件夹的读取权限')
-  return { name: handle.name, videos: await readVideos(handle), config: await readConfig(handle) }
+  const videos = await readOrNull(handle)
+  if (!videos) throw new Error('上次的文件夹读不出来了（可能被删掉或移走了），请重新选一个')
+  return { name: handle.name, videos, config: await readConfig(handle) }
 }
 
 /** `<input type="file" webkitdirectory>` 或拖拽：只拿得到 File，拿不到持久句柄。 */
