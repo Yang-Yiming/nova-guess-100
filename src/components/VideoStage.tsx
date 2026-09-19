@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
-import { assetUrl, type ClipDef, type Settings } from '../game/config.ts'
+import type { Settings } from '../game/config.ts'
+import type { PlayableClip } from '../game/source.ts'
 import { pickSegment, type Segment } from '../game/quiz.ts'
 
 export interface VideoStageProps {
   /** 换题时父组件要用 key={question.key} 重挂本组件，才能重新抽片段 */
-  clip: ClipDef
+  clip: PlayableClip
   settings: Settings
   /** true 时片段循环播放（揭晓答案后让大家再看一遍） */
   loop: boolean
   muted: boolean
   /** 片段播完（loop 为 false 时只回调一次） */
   onEnded?: () => void
-  onError?: (clip: ClipDef) => void
+  onError?: (clip: PlayableClip) => void
   onToggleMute?: () => void
 }
 
@@ -120,7 +121,7 @@ export function VideoStage({ clip, settings, loop, muted, onEnded, onError, onTo
       <video
         ref={videoRef}
         className={'stage__video' + (status === 'ready' ? '' : ' stage__video--hidden')}
-        src={assetUrl(clip.file)}
+        src={clip.url}
         playsInline
         disablePictureInPicture
         preload="auto"

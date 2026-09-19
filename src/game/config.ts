@@ -5,14 +5,9 @@
  * 所以改 json / 换视频之后**不用重新 build**，刷新页面即可。
  */
 
-export interface StyleDef {
-  /** 唯一 id，clip.style 引用它 */
-  id: string
-  /** 显示名，例如 "Hip-hop" */
-  name: string
-  /** 揭晓答案时给新人看的一句话科普 */
-  note?: string
-}
+import { DEFAULT_STYLES, type StyleDef } from './styles.ts'
+
+export type { StyleDef }
 
 export interface ClipDef {
   /** 相对 `public/assets/` 的文件名，可带子目录，例如 "hiphop/01.mp4" */
@@ -156,7 +151,8 @@ export function parseConfig(raw: unknown): LoadedConfig {
 
   const styles: StyleDef[] = []
   const stylesById = new Map<string, StyleDef>()
-  for (const [index, entry] of asArray(root.styles, 'styles').entries()) {
+  // 不写 styles 就用代码里内置的 7 个舞种；写了就以 json 为准
+  for (const [index, entry] of (root.styles === undefined ? DEFAULT_STYLES : asArray(root.styles, 'styles')).entries()) {
     const style = asObject<RawStyle>(entry, `styles[${index}]`)
     const id = asString(style.id, `styles[${index}].id`)
     if (stylesById.has(id)) throw new ConfigError(`styles 里 id 重复：${id}`)
@@ -171,7 +167,7 @@ export function parseConfig(raw: unknown): LoadedConfig {
 
   const clips: ClipDef[] = []
   const seenFiles = new Set<string>()
-  for (const [index, entry] of asArray(root.clips, 'clips').entries()) {
+  for (const [index, entry] of (root.clips === undefined ? [] : asArray(root.clips, 'clips')).entries()) {
     const clip = asObject<RawClip>(entry, `clips[${index}]`)
     const file = asString(clip.file, `clips[${index}].file`)
     const style = asString(clip.style, `clips[${index}].style`)

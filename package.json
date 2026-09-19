@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:portable": "tsc -b && vite build --config vite.config.portable.ts",
     "preview": "vite preview",
     "lint": "oxlint",
-    "demo": "bun scripts/demo-clips.ts"
+    "demo": "bun scripts/demo-clips.ts",
+    "transcode": "bun scripts/transcode-videos.ts"
   },
   "dependencies": {
     "react": "^19.2.8",

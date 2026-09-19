@@ -1,11 +1,12 @@
 import { useCallback, useMemo, useReducer, useRef } from 'react'
-import type { ClipDef, QuizConfig, StyleDef } from './config.ts'
+import type { QuizConfig, StyleDef } from './config.ts'
+import type { PlayableClip } from './source.ts'
 import { buildQuestion, createClipDeck, type Question } from './quiz.ts'
 
 export type Phase = 'playing' | 'revealed' | 'done'
 
 export interface AnswerRecord {
-  clip: ClipDef
+  clip: PlayableClip
   /** 答对时是选中的那个舞种，答错时是选错的舞种 */
   picked: StyleDef
   correct: StyleDef
@@ -84,7 +85,7 @@ export interface Quiz {
   restart: () => void
 }
 
-export function useQuiz(config: QuizConfig, clips: readonly ClipDef[]): Quiz {
+export function useQuiz(config: QuizConfig, clips: readonly PlayableClip[]): Quiz {
   const { choiceCount, questionsPerRound } = config.settings
   const nonce = useRef(0)
   const deck = useRef(createClipDeck(clips))

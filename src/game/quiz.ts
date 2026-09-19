@@ -1,4 +1,5 @@
-import type { ClipDef, Settings, StyleDef } from './config.ts'
+import type { Settings, StyleDef } from './config.ts'
+import type { PlayableClip } from './source.ts'
 
 export interface Segment {
   start: number
@@ -8,7 +9,7 @@ export interface Segment {
 export interface Question {
   /** 换题时用来重挂 <video>，保证不残留上一题的播放位置 */
   key: string
-  clip: ClipDef
+  clip: PlayableClip
   answer: StyleDef
   choices: StyleDef[]
 }
@@ -44,10 +45,10 @@ export function pickSegment(duration: number, settings: Settings): Segment {
  * 抽签袋：一轮内不重复出同一个视频，抽完自动洗牌重来，
  * 并且不让洗牌接缝处连续两次出现同一个视频。
  */
-export function createClipDeck(clips: readonly ClipDef[]): () => ClipDef {
+export function createClipDeck(clips: readonly PlayableClip[]): () => PlayableClip {
   if (clips.length === 0) throw new Error('createClipDeck：clips 不能为空')
-  let bag: ClipDef[] = []
-  let previous: ClipDef | null = null
+  let bag: PlayableClip[] = []
+  let previous: PlayableClip | null = null
 
   return () => {
     if (bag.length === 0) {
@@ -58,13 +59,13 @@ export function createClipDeck(clips: readonly ClipDef[]): () => ClipDef {
         ;[bag[last], bag[j]] = [bag[j], bag[last]]
       }
     }
-    const clip = bag.pop() as ClipDef
+    const clip = bag.pop() as PlayableClip
     previous = clip
     return clip
   }
 }
 
-export function buildQuestion(clip: ClipDef, styles: readonly StyleDef[], choiceCount: number, nonce: string): Question {
+export function buildQuestion(clip: PlayableClip, styles: readonly StyleDef[], choiceCount: number, nonce: string): Question {
   const answer = styles.find((style) => style.id === clip.style)
   if (!answer) throw new Error(`视频 ${clip.file} 的舞种 ${clip.style} 不存在`)
 
