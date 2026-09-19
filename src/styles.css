@@ -419,7 +419,7 @@ code {
 /* 播放区：贴上去的照片，四角有胶带 */
 .stage {
   position: relative;
-  width: min(100%, calc(62dvh * var(--stage-ratio, 1.7778)));
+  width: min(100%, calc(var(--stage-max, 62dvh) * var(--stage-ratio, 1.7778)));
   aspect-ratio: var(--stage-ratio, 16 / 9);
   margin-inline: auto;
   background: #000;
@@ -687,9 +687,10 @@ code {
 .reveal {
   position: relative;
   display: grid;
-  gap: 8px;
-  justify-items: start;
-  padding: 22px 24px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 20px;
+  padding: 16px 20px;
   border: 3px solid var(--ink);
   border-radius: var(--radius);
   background: var(--card);
@@ -707,6 +708,17 @@ code {
   background: #2a1620;
 }
 
+.reveal__text {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.reveal .btn {
+  grid-column: 2;
+  grid-row: 1;
+}
+
 .reveal__verdict {
   margin: 0;
   font-family: var(--font-mono);
@@ -720,7 +732,7 @@ code {
 .reveal__style {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(30px, 6vw, 46px);
+  font-size: clamp(24px, 4.4vw, 34px);
   font-weight: 900;
   letter-spacing: 0.04em;
   color: var(--ink);
@@ -740,8 +752,8 @@ code {
 .reveal__note {
   margin: 0;
   max-width: 640px;
-  font-size: 14.5px;
-  line-height: 1.85;
+  font-size: 13.5px;
+  line-height: 1.7;
   color: rgba(244, 239, 228, 0.84);
 }
 
@@ -753,8 +765,51 @@ code {
   color: var(--faint);
 }
 
-.reveal .btn {
-  margin-top: 8px;
+/* 揭晓后视频让位：整屏要塞下 播放区 + 选项 + 答案卡，不压缩就得滚动 */
+.screen--revealed .stage {
+  --stage-max: 38dvh;
+}
+
+@media (max-width: 720px) {
+  /* 窄屏放不下两列，回到上下堆叠，按钮占满一行好点 */
+  .reveal {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .reveal .btn {
+    grid-column: 1;
+    grid-row: auto;
+    justify-content: center;
+  }
+
+  /* 手机竖向空间紧：播放区、选项、答案卡三样都要塞进一屏，
+     各自收紧一点，避免出现滚动（滚动会把顶部题号顶出去） */
+  .screen--revealed .stage {
+    --stage-max: 30dvh;
+  }
+
+  .screen--quiz {
+    gap: 10px;
+  }
+
+  .choices {
+    gap: 9px;
+  }
+
+  .choices__item {
+    padding: 12px 14px;
+    font-size: 15.5px;
+  }
+
+  .choices__key {
+    width: 26px;
+    height: 26px;
+  }
+
+  .reveal {
+    padding: 14px 16px;
+  }
 }
 
 /* ---------- 结算页 ---------- */

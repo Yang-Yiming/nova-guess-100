@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { QuizConfig } from '../game/config.ts'
 import type { Quiz } from '../game/useQuiz.ts'
 import { ChoiceGrid } from './ChoiceGrid.tsx'
@@ -16,16 +16,28 @@ export function QuizScreen({ quiz, config, muted, onToggleMute }: QuizScreenProp
   const { question } = state
   const [ended, setEnded] = useState(false)
   const [failed, setFailed] = useState(false)
+  const revealRef = useRef<HTMLElement | null>(null)
 
   const revealed = state.pickedId !== null
   const isCorrect = revealed && state.pickedId === question.answer.id
   const lastQuestion = state.questionNo >= total
 
-  // 换题：清掉上一题的状态
+  // 换题：清掉上一题的状态，并把视图拉回顶部（上一题可能滚下去过）
   useEffect(() => {
     setEnded(false)
     setFailed(false)
+    window.scrollTo({ top: 0 })
   }, [question.key])
+
+  // 揭晓卡片的兜底：小屏幕上如果露不出来，就滚到能看见
+  useEffect(() => {
+    if (!revealed) return
+    const card = revealRef.current
+    if (!card) return
+    if (card.getBoundingClientRect().bottom > window.innerHeight) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    }
+  }, [revealed])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -47,7 +59,7 @@ export function QuizScreen({ quiz, config, muted, onToggleMute }: QuizScreenProp
   }, [quiz, question, revealed])
 
   return (
-    <div className="screen screen--quiz">
+    <div className={'screen screen--quiz' + (revealed ? ' screen--revealed' : '')}>
       <header className="hud">
         <div className="hud__progress" aria-hidden="true">
           <span style={{ width: `${(answered / total) * 100}%` }} />
@@ -96,11 +108,16 @@ export function QuizScreen({ quiz, config, muted, onToggleMute }: QuizScreenProp
       <ChoiceGrid choices={question.choices} pickedId={state.pickedId} answerId={question.answer.id} onPick={quiz.answer} />
 
       {revealed && (
-        <section className={'reveal' + (isCorrect ? ' reveal--hit' : ' reveal--miss')}>
-          <p className="reveal__verdict">{isCorrect ? '答对了' : '答错了，正确答案：'}</p>
-          <p className="reveal__style">{question.answer.name}</p>
-          {question.answer.note && <p className="reveal__note">{question.answer.note}</p>}
-          {question.clip.title && <p className="reveal__source">素材 · {question.clip.title}</p>}
+        <section
+          className={'reveal' + (isCorrect ? ' reveal--hit' : ' reveal--miss')}
+          ref={revealRef}
+        >
+          <div className="reveal__text">
+            <p className="reveal__verdict">{isCorrect ? '答对了' : '答错了'}</p>
+            <p className="reveal__style">{question.answer.name}</p>
+            {question.answer.note && <p className="reveal__note">{question.answer.note}</p>}
+            {question.clip.title && <p className="reveal__source">素材 · {question.clip.title}</p>}
+          </div>
           <button className="btn btn--primary" type="button" onClick={quiz.next}>
             {lastQuestion ? '看成绩' : '下一题'}
           </button>
