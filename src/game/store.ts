@@ -15,12 +15,14 @@ export interface PersistedState {
   disabledStyles: string[]
   /** 视频路径 → 舞种 id */
   assignments: Record<string, string>
+  /** 舞种名是否附带中文 */
+  showChinese: boolean
 }
 
 const KEY = 'nova100:v1'
 
 export function defaultPersisted(): PersistedState {
-  return { version: 1, source: 'builtin', settings: {}, disabledStyles: [], assignments: {} }
+  return { version: 1, source: 'builtin', settings: {}, disabledStyles: [], assignments: {}, showChinese: false }
 }
 
 export function loadPersisted(): PersistedState {
@@ -33,6 +35,7 @@ export function loadPersisted(): PersistedState {
       source: parsed.source === 'folder' ? 'folder' : 'builtin',
       settings: typeof parsed.settings === 'object' && parsed.settings !== null ? parsed.settings : {},
       disabledStyles: Array.isArray(parsed.disabledStyles) ? parsed.disabledStyles.filter((id) => typeof id === 'string') : [],
+      showChinese: parsed.showChinese === true,
       assignments:
         typeof parsed.assignments === 'object' && parsed.assignments !== null
           ? Object.fromEntries(Object.entries(parsed.assignments).filter(([, value]) => typeof value === 'string'))

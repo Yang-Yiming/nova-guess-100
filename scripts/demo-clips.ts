@@ -25,13 +25,13 @@ const CLIPS: Array<[string, number, number, number, number]> = [
 const DEMO_CONFIG = {
   settings: { minSegment: 15, maxSegment: 20, trimEdge: 2, choiceCount: 4, questionsPerRound: 4 },
   styles: [
-    { id: 'hiphop', name: 'Hip-hop 嘻哈', note: '律动（bounce）是根，重拍踩得死死的。' },
-    { id: 'jazz', name: 'Jazz 爵士', note: '线条长、延伸多、爆发力强，讲究表情和态度。' },
-    { id: 'breaking', name: 'Breaking 霹雳舞', note: 'Toprock / Footwork / Freeze / Powermove 四大块。' },
-    { id: 'popping', name: 'Popping 震感舞', note: '肌肉瞬间收紧放松，做出一顿一顿的质感。' },
-    { id: 'locking', name: 'Locking 锁舞', note: '动作做到一半突然锁住定格，最开心的舞种之一。' },
-    { id: 'waacking', name: 'Waacking 甩手舞', note: '手臂快速甩、Pose 要狠，表达态度和情绪。' },
-    { id: 'house', name: 'House 浩室', note: '脚步碎、快、流畅，上身放松，像一直在往前跑。' },
+    { id: 'hiphop', name: 'Hip-hop', nameZh: '嘻哈', note: '律动（bounce）是根，重拍踩得死死的。' },
+    { id: 'jazz', name: 'Jazz', nameZh: '爵士', note: '线条长、延伸多、爆发力强，讲究表情和态度。' },
+    { id: 'breaking', name: 'Breaking', nameZh: '霹雳舞', note: 'Toprock / Footwork / Freeze / Powermove 四大块。' },
+    { id: 'popping', name: 'Popping', nameZh: '震感舞', note: '肌肉瞬间收紧放松，做出一顿一顿的质感。' },
+    { id: 'locking', name: 'Locking', nameZh: '锁舞', note: '动作做到一半突然锁住定格，最开心的舞种之一。' },
+    { id: 'waacking', name: 'Waacking', nameZh: '甩手舞', note: '手臂快速甩、Pose 要狠，表达态度和情绪。' },
+    { id: 'house', name: 'House', nameZh: '浩室', note: '脚步碎、快、流畅，上身放松，像一直在往前跑。' },
   ],
   clips: [
     { file: 'demo-hiphop-01.mp4', style: 'hiphop' },

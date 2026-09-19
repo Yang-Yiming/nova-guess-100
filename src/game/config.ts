@@ -85,6 +85,7 @@ interface RawSettings {
 interface RawStyle {
   id?: unknown
   name?: unknown
+  nameZh?: unknown
   note?: unknown
 }
 
@@ -159,6 +160,7 @@ export function parseConfig(raw: unknown): LoadedConfig {
     const parsed: StyleDef = {
       id,
       name: asString(style.name, `styles[${index}].name`),
+      nameZh: asOptionalString(style.nameZh, `styles[${index}].nameZh`),
       note: asOptionalString(style.note, `styles[${index}].note`),
     }
     styles.push(parsed)

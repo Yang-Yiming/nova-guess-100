@@ -60,7 +60,9 @@ bun run transcode -- --in raw --out public/assets --crf 20 --max-height 1080
 }
 ```
 
-内置舞种：`hiphop` `jazz` `breaking` `popping` `locking` `waacking` `house`
+内置舞种：`hiphop` `jazz` `breaking` `popping` `locking` `waacking` `house`。
+每条可以带 `nameZh`（中文名），默认**不显示** —— 中文名有时会直接暗示动作形式
+（「甩手舞」「锁舞」），新人还没看就能猜出来。设置里「选项里显示中文名」可以打开。
 
 ## 现场怎么玩
 

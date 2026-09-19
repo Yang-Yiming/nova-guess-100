@@ -23,7 +23,7 @@ import {
   type LocalVideo,
 } from './game/local.ts'
 import { builtinClips, localClips, type PlayableClip } from './game/source.ts'
-import { DEFAULT_STYLES } from './game/styles.ts'
+import { DEFAULT_STYLES, displayName } from './game/styles.ts'
 import { loadPersisted, savePersisted, type PersistedState } from './game/store.ts'
 import { stylesWithClips } from './game/quiz.ts'
 import { useQuiz } from './game/useQuiz.ts'
@@ -148,7 +148,14 @@ export default function App() {
   const usingFolder = persisted.source === 'folder' && videos.length > 0
   // 自带素材模式用 clips.json 的舞种（可能是自定义的），文件夹模式用内置那 7 个
   const allStyles = usingFolder ? DEFAULT_STYLES : builtin.styles
-  const styles = useMemo(() => allStyles.filter((style) => !persisted.disabledStyles.includes(style.id)), [allStyles, persisted.disabledStyles])
+  // 舞种名在这里统一解析好，下游组件直接用 style.name 就是该显示的写法
+  const styles = useMemo(
+    () =>
+      allStyles
+        .filter((style) => !persisted.disabledStyles.includes(style.id))
+        .map((style) => ({ ...style, name: displayName(style, persisted.showChinese) })),
+    [allStyles, persisted.disabledStyles, persisted.showChinese],
+  )
 
   const config: QuizConfig = useMemo(() => ({ settings, styles: [...styles], clips: [] }), [settings, styles])
 
@@ -212,6 +219,10 @@ export default function App() {
             assignments={persisted.assignments}
             sourceLabel={sourceLabel}
             maxChoices={maxChoices}
+            showChinese={persisted.showChinese}
+            onToggleShowChinese={() =>
+              setPersisted((previous) => ({ ...previous, showChinese: !previous.showChinese }))
+            }
             canPickFolder={canPickFolder()}
             onPickFolder={() => {
               void (async () => {

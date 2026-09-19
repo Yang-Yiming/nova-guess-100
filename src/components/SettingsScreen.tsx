@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { DEFAULT_SETTINGS, type Settings, type StyleDef } from '../game/config.ts'
 import type { LocalVideo } from '../game/local.ts'
+import { displayName } from '../game/styles.ts'
 
 export interface SettingsScreenProps {
   settings: Settings
@@ -13,6 +14,9 @@ export interface SettingsScreenProps {
   sourceLabel: string
   /** 真正能出成题的舞种数（= 配了视频的舞种数），选项数不能超过它 */
   maxChoices: number
+  /** 舞种名是否附带中文 */
+  showChinese: boolean
+  onToggleShowChinese: () => void
   /** 浏览器是否支持直接选文件夹 */
   canPickFolder: boolean
   onPickFolder: () => void
@@ -35,6 +39,8 @@ export function SettingsScreen(props: SettingsScreenProps) {
     assignments,
     sourceLabel,
     maxChoices,
+    showChinese,
+    onToggleShowChinese,
     canPickFolder,
     onPickFolder,
     onChooseFiles,
@@ -147,7 +153,7 @@ export function SettingsScreen(props: SettingsScreenProps) {
                   <option value="">不参与</option>
                   {allStyles.map((style) => (
                     <option value={style.id} key={style.id}>
-                      {style.name}
+                      {displayName(style, showChinese)}
                     </option>
                   ))}
                 </select>
@@ -220,6 +226,13 @@ export function SettingsScreen(props: SettingsScreenProps) {
       <section className="panel">
         <h2>4 · 舞种</h2>
         <p className="panel__hint">关掉的舞种不会出现在选项里。至少要留 2 个。</p>
+        <label className="switch">
+          <input type="checkbox" checked={showChinese} onChange={onToggleShowChinese} />
+          <span>
+            选项里显示中文名
+            <em>中文名有时会暗示动作形式（比如「甩手舞」），关掉更难猜</em>
+          </span>
+        </label>
         <div className="toggles">
           {allStyles.map((style) => {
             const off = disabledStyles.includes(style.id)
@@ -232,7 +245,7 @@ export function SettingsScreen(props: SettingsScreenProps) {
                 disabled={!off && activeStyles.length <= 2}
                 onClick={() => onToggleStyle(style.id)}
               >
-                {style.name}
+                {displayName(style, showChinese)}
               </button>
             )
           })}
