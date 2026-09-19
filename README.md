@@ -92,6 +92,34 @@ bun run build && bun run serve -- --dir dist
 | `public/assets`（或任何只放素材的目录） | `<服务根>/clips.json` | `<服务根>/a.mp4` |
 | `dist`（打包产物） | `<服务根>/assets/clips.json` | `<服务根>/assets/a.mp4` |
 
+### 自动找服务器（白名单）
+
+不想在 iPad 上输地址的话，可以让页面自己去找。`src/game/remote.ts` 里有一个白名单：
+
+```ts
+export const KNOWN_SERVERS: readonly string[] = ['yangyimingdeMacBook-Air.local:8888']
+```
+
+写**机器名**不是 IP —— `.local` 由 iPad 那边的 Bonjour/mDNS 解析成当前 IP，
+换网络、DHCP 续租改了地址都不用动。查自己的机器名：`scutil --get LocalHostName`，
+后面接 `:8888` 就是这里要填的。
+
+生效条件（同时满足）：
+
+1. 没有指定过文件夹；
+2. 没有记住过服务器地址；
+3. 本页**不是**素材服务器自己发出来的（那种情况同源更省事，不需要找）。
+
+满足时启动会并发探一遍白名单，**只要读得到对面能用的 `clips.json` 就算命中**
+（不会去下载视频，也不探测不存在的文件）。探到就把弹框里的地址换成找到的那个、
+标一个「找到」，连不连由你点 —— 不会自动连。
+
+连不上就静默放弃，照旧显示手输地址的弹框，不会多出任何报错。
+
+> 页面是 `https://` 打开的时候，浏览器不允许它去访问 `http://` 的局域网地址（混合内容），
+> 所以这条只在页面本身也是 `http://` 时才有效。iPad 常规用法（直接开服务器给的地址）
+> 本来就是 http，不受影响。
+
 ### 视频不放仓库里（`--assets`）
 
 几百 MB 的视频放 `public/assets/` 有个副作用：`vite build` 会把 `public/` 整个复制进

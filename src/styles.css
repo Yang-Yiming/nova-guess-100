@@ -1215,6 +1215,29 @@ code {
   color: var(--faint);
 }
 
+/* 白名单里探到的那台：像贴纸一样标出来，一眼看到地址 */
+.prompt__found {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 2px solid var(--spray);
+  background: rgba(255, 230, 0, 0.08);
+  color: var(--ink);
+  word-break: break-all;
+}
+
+.prompt__found-label {
+  flex: none;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--spray);
+}
+
 .prompt__body .remote__input {
   width: 100%;
   text-align: center;

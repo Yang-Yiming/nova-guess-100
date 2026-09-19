@@ -63,6 +63,44 @@ function joinUrl(base: string, file: string): string {
   return base + path
 }
 
+/**
+ * 找服务器时试的候选地址。写的是**机器名**不是 IP —— 这正是它比写 IP 强的地方：
+ * `.local` 由 iPad 那边的 mDNS 解析成当前 IP，换网络、DHCP 续租变了地址都不用改。
+ *
+ * 只放自己人的机器，不是给陌生人用的默认值。查自己的名字：
+ *   scutil --get LocalHostName      # 加上 :8888 就是这里要填的
+ */
+export const KNOWN_SERVERS: readonly string[] = ['yangyimingdeMacBook-Air.local:8888']
+
+/**
+ * 探测超时。`.local` 第一次要等一轮 mDNS 查询（几十到几百毫秒），给宽松点；
+ * 连不上的话也会等满这么久 —— 反正是后台跑，不挡任何东西。
+ */
+const PROBE_TIMEOUT = 1500
+
+/** 这个地址背后是不是一个能用的素材服务器。只读 `clips.json`，不碰视频。 */
+export async function probeRemote(input: string): Promise<string | null> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT)
+  try {
+    const base = normalizeBaseUrl(input)
+    await fetchConfig(base, controller.signal)
+    return base
+  } catch {
+    // 连不上、不是咱们的服务器、被混合内容拦掉：都算「没找到」，不打扰用户
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** 并发探一遍白名单，返回第一个命中的。 */
+export async function findKnownServer(): Promise<string | null> {
+  if (KNOWN_SERVERS.length === 0) return null
+  const results = await Promise.all(KNOWN_SERVERS.map((candidate) => probeRemote(candidate)))
+  return results.find((base) => base !== null) ?? null
+}
+
 async function fetchConfig(base: string, signal: AbortSignal): Promise<{ loaded: LoadedConfig; assetBase: string }> {
   // 两种服务布局都认：
   //   bun run serve --dir <视频目录>  → /clips.json

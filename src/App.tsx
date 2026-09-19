@@ -24,7 +24,7 @@ import {
   type LocalVideo,
 } from './game/local.ts'
 import { purgeLegacyVideoCache } from './game/idb.ts'
-import { loadRemote, type RemoteSource } from './game/remote.ts'
+import { findKnownServer, loadRemote, type RemoteSource } from './game/remote.ts'
 import { httpClips, localClips, type PlayableClip } from './game/source.ts'
 import { DEFAULT_STYLES, displayName } from './game/styles.ts'
 import { loadPersisted, savePersisted, type PersistedState } from './game/store.ts'
@@ -93,6 +93,8 @@ export default function App() {
   /** 没指定过任何来源时，启动问一次 */
   const [askSource, setAskSource] = useState(false)
   const [draftUrl, setDraftUrl] = useState('')
+  /** 白名单里探到的服务器；探到就把输入框换掉，但不自己连 */
+  const [foundServer, setFoundServer] = useState<string | null>(null)
 
   const remoteAbort = useRef<AbortController | null>(null)
 
@@ -139,11 +141,14 @@ export default function App() {
     let cancelled = false
     void (async () => {
       const stored = loadPersisted()
+      /** 本页 assets/ 里真能用的视频数；0 说明页面不是素材服务器发出来的 */
+      let localClips = 0
       // 便携版是双击 file:// 打开的，fetch 会被 CORS 挡掉，所以压根不去读
       if (!__PORTABLE__) {
         try {
           const { config, diagnostics } = await loadConfig()
           const { available, missing } = await checkAvailability(config.clips)
+          localClips = available.length
           if (!cancelled) {
             setBuiltin({ clips: httpClips(available, assetUrl), styles: config.styles, diagnostics })
             // 用服务器素材时本机 assets 是空的，这声提醒只会添乱
@@ -192,10 +197,18 @@ export default function App() {
       }
       if (stored.source === 'builtin' && stored.sourceConfirmed) return
       // 便携版是 file:// 双击打开的，fetch 到 http 会被拦，问了也没用
-      if (!__PORTABLE__) {
-        // 页面多半就是素材服务器发出来的，把当前地址填进去当默认值
-        setDraftUrl(stored.remoteUrl || location.origin)
-        setAskSource(true)
+      if (__PORTABLE__) return
+      // 页面多半就是素材服务器发出来的，把当前地址填进去当默认值
+      setDraftUrl(stored.remoteUrl || location.origin)
+      setAskSource(true)
+      // 本页没有自带素材时才去找：页面本身就是服务器发的，同源那个已经够好了
+      if (localClips === 0) {
+        void findKnownServer().then((found) => {
+          if (cancelled || !found) return
+          // 只把输入框换成找到的地址，不自己连 —— 连不连由用户点
+          setFoundServer(found)
+          setDraftUrl(found)
+        })
       }
     })()
     return () => {
@@ -290,6 +303,7 @@ export default function App() {
 
   /** 启动询问框里选「用服务器素材」：本页同源就直接用，否则连填的地址。 */
   const useServerSource = () => {
+    setFoundServer(null)
     if (builtin.clips.length > 0) {
       setAskSource(false)
       setPersisted((previous) => ({ ...previous, source: 'builtin', sourceConfirmed: true }))
@@ -311,6 +325,7 @@ export default function App() {
         const picked = await pickFolder()
         if (!picked) return
         setAskSource(false)
+        setFoundServer(null)
         applyVideos(picked.name, picked.videos)
       } catch (cause) {
         setNotice(cause instanceof Error ? cause.message : String(cause))
@@ -425,10 +440,18 @@ export default function App() {
           <p>视频从哪来？</p>
           <div className="prompt__body">
             <p className="prompt__hint">
-              {builtin.clips.length > 0
-                ? `这个页面就是素材服务器发出来的（${location.host}），直接用服务器上的素材就行，不用下载。`
-                : '这个页面不是素材服务器发出来的。填一下它的地址 —— 也就是跑 bun run serve 的那台机器，启动时会打印出来。'}
+              {foundServer
+                ? '在同一个网络里找到了这台 —— 视频直接从那台机器取，不用下载。'
+                : builtin.clips.length > 0
+                  ? `这个页面就是素材服务器发出来的（${location.host}），直接用服务器上的素材就行，不用下载。`
+                  : '这个页面不是素材服务器发出来的。填一下它的地址 —— 也就是跑 bun run serve 的那台机器，启动时会打印出来。'}
             </p>
+            {foundServer && (
+              <p className="prompt__found">
+                <span className="prompt__found-label">找到</span>
+                {foundServer}
+              </p>
+            )}
             {builtin.clips.length === 0 && (
               <input
                 className="remote__input"
