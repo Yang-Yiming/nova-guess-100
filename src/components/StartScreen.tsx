@@ -5,6 +5,8 @@ export interface StartScreenProps {
   config: QuizConfig
   /** 这局能用的视频段数 */
   clipCount: number
+  /** 真正能出成题的舞种数（= 配了视频的舞种数） */
+  styleCount: number
   /** 视频来源显示名 */
   sourceLabel: string
   /** 额外提醒，例如"还有 2 个视频没指定舞种" */
@@ -13,9 +15,11 @@ export interface StartScreenProps {
   onSettings: () => void
 }
 
-export function StartScreen({ config, clipCount, sourceLabel, extraNotice, onStart, onSettings }: StartScreenProps) {
-  const { settings, styles } = config
+export function StartScreen({ config, clipCount, styleCount, sourceLabel, extraNotice, onStart, onSettings }: StartScreenProps) {
+  const { settings } = config
   const ready = clipCount > 0
+  // 只有一个舞种时题目没有悬念，得提醒负责人再配一个
+  const playable = ready && styleCount >= 2
 
   return (
     <div className="screen screen--start">
@@ -31,7 +35,7 @@ export function StartScreen({ config, clipCount, sourceLabel, extraNotice, onSta
           <strong>{clipCount}</strong> 段视频
         </span>
         <span className="stat">
-          <strong>{styles.length}</strong> 个舞种
+          <strong>{styleCount}</strong> 个舞种
         </span>
         <span className="stat">
           <strong>{settings.questionsPerRound}</strong> 题一局
@@ -46,15 +50,21 @@ export function StartScreen({ config, clipCount, sourceLabel, extraNotice, onSta
         </section>
       )}
 
-      {ready && extraNotice && (
+      {ready && !playable && (
+        <section className="notice notice--error">
+          <p>目前只有 {styleCount} 个舞种有视频，选择题出不了。至少给 2 个舞种各配一段视频。</p>
+        </section>
+      )}
+
+      {playable && extraNotice && (
         <section className="notice notice--warn">
           <p>{extraNotice}</p>
         </section>
       )}
 
       <div className="actions">
-        <button className="btn btn--primary btn--big" type="button" disabled={!ready} onClick={onStart}>
-          {ready ? '开始挑战' : '先去设置'}
+        <button className="btn btn--primary btn--big" type="button" onClick={playable ? onStart : onSettings}>
+          {playable ? '开始挑战' : '先去设置'}
         </button>
         <button className="btn" type="button" onClick={onSettings}>
           设置

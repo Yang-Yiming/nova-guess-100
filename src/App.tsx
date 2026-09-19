@@ -10,6 +10,7 @@ import {
   type Diagnostic,
   type QuizConfig,
   type Settings,
+  type StyleDef,
 } from './game/config.ts'
 import {
   canPickFolder,
@@ -24,10 +25,13 @@ import {
 import { builtinClips, localClips, type PlayableClip } from './game/source.ts'
 import { DEFAULT_STYLES } from './game/styles.ts'
 import { loadPersisted, savePersisted, type PersistedState } from './game/store.ts'
+import { stylesWithClips } from './game/quiz.ts'
 import { useQuiz } from './game/useQuiz.ts'
 
 interface BuiltinData {
   clips: PlayableClip[]
+  /** clips.json 里的舞种；不写就是内置的那 7 个 */
+  styles: StyleDef[]
   diagnostics: Diagnostic[]
 }
 
@@ -64,7 +68,7 @@ function View({
 }
 
 export default function App() {
-  const [builtin, setBuiltin] = useState<BuiltinData>({ clips: [], diagnostics: [] })
+  const [builtin, setBuiltin] = useState<BuiltinData>({ clips: [], styles: [...DEFAULT_STYLES], diagnostics: [] })
   const [persisted, setPersisted] = useState<PersistedState>(loadPersisted)
   const [videos, setVideos] = useState<LocalVideo[]>([])
   const [folderName, setFolderName] = useState<string | null>(null)
@@ -86,7 +90,7 @@ export default function App() {
           const { config, diagnostics } = await loadConfig()
           const { available, missing } = await checkAvailability(config.clips)
           if (!cancelled) {
-            setBuiltin({ clips: builtinClips(available).clips, diagnostics })
+            setBuiltin({ clips: builtinClips(available).clips, styles: config.styles, diagnostics })
             if (missing.length > 0) setNotice(`自带素材里 ${missing.length} 个文件不存在，已跳过`)
           }
         } catch (cause) {
@@ -141,9 +145,10 @@ export default function App() {
   }, [])
 
   const settings = useMemo(() => resolveSettings(persisted.settings), [persisted.settings])
-  const styles = useMemo(() => DEFAULT_STYLES.filter((style) => !persisted.disabledStyles.includes(style.id)), [persisted.disabledStyles])
-
   const usingFolder = persisted.source === 'folder' && videos.length > 0
+  // 自带素材模式用 clips.json 的舞种（可能是自定义的），文件夹模式用内置那 7 个
+  const allStyles = usingFolder ? DEFAULT_STYLES : builtin.styles
+  const styles = useMemo(() => allStyles.filter((style) => !persisted.disabledStyles.includes(style.id)), [allStyles, persisted.disabledStyles])
 
   const config: QuizConfig = useMemo(() => ({ settings, styles: [...styles], clips: [] }), [settings, styles])
 
@@ -166,6 +171,9 @@ export default function App() {
     }
   }, [usingFolder, clips])
 
+  // 只有配了视频的舞种才可能成为答案：它同时决定选项数上限和首页显示
+  const styleCount = useMemo(() => stylesWithClips(clips, styles).length, [clips, styles])
+  const maxChoices = Math.max(2, styleCount)
   const sourceLabel = usingFolder
     ? `文件夹「${folderName ?? '已选'}」`
     : __PORTABLE__
@@ -198,11 +206,12 @@ export default function App() {
         ) : screen === 'settings' ? (
           <SettingsScreen
             settings={settings}
-            allStyles={DEFAULT_STYLES}
+            allStyles={allStyles}
             disabledStyles={persisted.disabledStyles}
             videos={videos}
             assignments={persisted.assignments}
             sourceLabel={sourceLabel}
+            maxChoices={maxChoices}
             canPickFolder={canPickFolder()}
             onPickFolder={() => {
               void (async () => {
@@ -246,7 +255,7 @@ export default function App() {
             }
             onBack={() => setScreen('start')}
           />
-        ) : screen === 'quiz' && clips.length > 0 ? (
+        ) : screen === 'quiz' && styleCount >= 2 ? (
           <View
             clips={clips}
             config={config}
@@ -258,6 +267,7 @@ export default function App() {
           <StartScreen
             config={config}
             clipCount={clips.length}
+            styleCount={styleCount}
             sourceLabel={sourceLabel}
             extraNotice={
               usingFolder && unassigned > 0

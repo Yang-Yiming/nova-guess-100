@@ -64,6 +64,11 @@ bun run transcode -- --in raw --out public/assets --crf 20 --max-height 1080
 
 ## 现场怎么玩
 
+出题顺序是 **先等概率抽舞种 → 再在该舞种里抽视频 → 最后抽片段**。
+所以每个舞种被问到的机会只跟「有几个舞种」有关，跟某个舞种拍了几支视频无关
+—— 某个舞种交上来 10 支视频，也不会因此被反复问到。
+没有配视频的舞种不会成为答案，也不会出现在选项里。
+
 - 一局 8 题，视频和片段都是随机的，很难背答案。
 - 键盘 **1–4** 选、**Enter** 下一题。
 - 片段播完自动停；揭晓后循环播放那段，方便讲解。
@@ -92,7 +97,8 @@ src/game/
   local.ts              # 选文件夹 / 遍历视频 / IndexedDB 存句柄
   store.ts              # localStorage 里的玩法参数与舞种配置
   source.ts             # 统一成可播放的 clip（assets URL 或 blob URL）
-  quiz.ts / useQuiz.ts  # 抽片段、抽签袋、答题状态机
+  quiz.ts               # 先抽舞种再抽视频、抽片段、组题（纯函数）
+  useQuiz.ts            # 答题状态机
 src/components/         # 首页 / 设置 / 答题 / 结算 / 播放器 / 选项
 src/ui/supernova/       # 从 NOVA-ledger 搬来的 logo 组件（悬停随机播 NOVA 音频）
 ```

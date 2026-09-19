@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useReducer, useRef } from 'react'
 import type { QuizConfig, StyleDef } from './config.ts'
 import type { PlayableClip } from './source.ts'
-import { buildQuestion, createClipDeck, type Question } from './quiz.ts'
+import { buildQuestion, createClipPicker, stylesWithClips, type Question } from './quiz.ts'
 
 export type Phase = 'playing' | 'revealed' | 'done'
 
@@ -88,15 +88,17 @@ export interface Quiz {
 export function useQuiz(config: QuizConfig, clips: readonly PlayableClip[]): Quiz {
   const { choiceCount, questionsPerRound } = config.settings
   const nonce = useRef(0)
-  const deck = useRef(createClipDeck(clips))
+  // 选项只从「有视频的舞种」里出：没有视频的舞种当不了答案，也不该当干扰项
+  const pool = useMemo(() => stylesWithClips(clips, config.styles), [clips, config.styles])
+  // 袋子要在 clips/舞种变化时重建，所以放在 ref 对象里，顺便给 restart 一个重置入口
+  const picker = useMemo(() => ({ current: createClipPicker(clips, config.styles) }), [clips, config.styles])
 
   const makeQuestion = useCallback(
     (): Question => {
       nonce.current += 1
-      const clip = deck.current()
-      return buildQuestion(clip, config.styles, choiceCount, String(nonce.current))
+      return buildQuestion(picker.current(), pool, choiceCount, String(nonce.current))
     },
-    [choiceCount, config.styles],
+    [picker, pool, choiceCount],
   )
 
   const [state, dispatch] = useReducer(reducer, undefined, () => freshState(makeQuestion()))
@@ -114,9 +116,10 @@ export function useQuiz(config: QuizConfig, clips: readonly PlayableClip[]): Qui
   }, [state.phase, state.questionNo, questionsPerRound, makeQuestion])
 
   const restart = useCallback(() => {
-    deck.current = createClipDeck(clips)
+    // 重新洗袋子：不然「再来一局」会接着上一局的剩余顺序走
+    picker.current = createClipPicker(clips, config.styles)
     dispatch({ type: 'restart', question: makeQuestion() })
-  }, [clips, makeQuestion])
+  }, [picker, clips, config.styles, makeQuestion])
 
   return useMemo(
     () => ({

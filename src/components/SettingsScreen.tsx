@@ -11,6 +11,8 @@ export interface SettingsScreenProps {
   assignments: Readonly<Record<string, string>>
   /** 当前素材来源的显示名 */
   sourceLabel: string
+  /** 真正能出成题的舞种数（= 配了视频的舞种数），选项数不能超过它 */
+  maxChoices: number
   /** 浏览器是否支持直接选文件夹 */
   canPickFolder: boolean
   onPickFolder: () => void
@@ -32,6 +34,7 @@ export function SettingsScreen(props: SettingsScreenProps) {
     videos,
     assignments,
     sourceLabel,
+    maxChoices,
     canPickFolder,
     onPickFolder,
     onChooseFiles,
@@ -191,13 +194,13 @@ export function SettingsScreen(props: SettingsScreenProps) {
           </label>
           <label className="field">
             <span className="field__label">
-              每题选项数<em>最多 {activeStyles.length}</em>
+              每题选项数<em>最多 {maxChoices}</em>
             </span>
             <input
               type="number"
               min={2}
-              max={Math.max(2, activeStyles.length)}
-              value={Math.min(settings.choiceCount, Math.max(2, activeStyles.length))}
+              max={maxChoices}
+              value={Math.min(settings.choiceCount, maxChoices)}
               onChange={(event) => set('choiceCount', Number(event.target.value))}
             />
           </label>
