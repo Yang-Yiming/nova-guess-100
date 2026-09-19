@@ -1,0 +1,11 @@
+node_modules
+dist
+dist-ssr
+*.local
+.DS_Store
+.vite
+
+# 放视频，别进 git（几十 MB 一个）
+public/assets/*
+!public/assets/clips.json
+!public/assets/.gitkeep

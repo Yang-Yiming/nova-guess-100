@@ -1,0 +1,47 @@
+/* Supernova — self-contained styles for the NOVA logo component.
+   No Tailwind required: copy this file together with Supernova.tsx,
+   supernova clips.json and the assets/ + clips/ folders. */
+
+.supernova {
+  position: relative;
+  display: inline-block;
+  aspect-ratio: 1280 / 633;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Keyframes animate `filter`, which would clobber a static invert() —
+   the light variant therefore injects its base filter via --nova-base-filter. */
+.supernova__logo {
+  --nova-base-filter: ;
+  --nova-glow: rgba(255, 255, 255, 0);
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: var(--nova-base-filter, ) drop-shadow(0 0 0 var(--nova-glow));
+  transform: scale(1);
+  transition: transform 0.35s ease, filter 0.35s ease;
+}
+
+/* White outline of the logo for dark backgrounds */
+.supernova--light .supernova__logo {
+  --nova-base-filter: invert(1);
+  --nova-glow: rgba(140, 180, 255, 0);
+}
+
+/* Hover: slight scale-up plus a faint halo fade-in */
+.supernova:hover .supernova__logo {
+  --nova-glow: rgba(255, 255, 255, 0.28);
+  transform: scale(1.05);
+}
+
+.supernova--light:hover .supernova__logo {
+  --nova-glow: rgba(140, 180, 255, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .supernova__logo {
+    transition: none;
+  }
+}
