@@ -45,7 +45,15 @@
   ],
   "clips": [
     {
-      "file": "Flowing house battle.mp4",
+      "file": "hiphop1.mp4",
+      "style": "hiphop"
+    },
+    {
+      "file": "hiphop2.mp4",
+      "style": "hiphop"
+    },
+    {
+      "file": "house1.mp4",
       "style": "house"
     },
     {
@@ -55,6 +63,22 @@
     {
       "file": "jazz2.mp4",
       "style": "jazz"
+    },
+    {
+      "file": "jazz3.mp4",
+      "style": "jazz"
+    },
+    {
+      "file": "waacking1.mp4",
+      "style": "waacking"
+    },
+    {
+      "file": "waacking2.mp4",
+      "style": "waacking"
+    },
+    {
+      "file": "waacking3.mp4",
+      "style": "waacking"
     }
   ]
 }
